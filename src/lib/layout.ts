@@ -26,12 +26,19 @@ export interface Visible {
 
 export const NODE_WIDTH = { area: 240, project: 220, task: 210 } as const;
 
+// Card heights, matching TaskNode's CSS: `fixed` covers padding, border, the "PROJECT" label and the
+// status row (with room for the assignee bubble); `line` is one title line. Titles are clamped at four
+// lines, and charsPerLine errs low so cards come out a little roomy rather than overflowing.
+const CARD = {
+  area: { fixed: 50, line: 22, charsPerLine: 20 },
+  project: { fixed: 60, line: 19.5, charsPerLine: 26 },
+  task: { fixed: 43, line: 19.5, charsPerLine: 21 },
+} as const;
+
 function nodeHeight(n: GraphNode) {
-  // Rough fit for the card's text width; titles beyond four lines are clamped.
-  const charsPerLine = n.kind === 'area' ? 19 : n.kind === 'project' ? 23 : 21;
-  const lines = Math.min(4, Math.max(1, Math.ceil(n.title.length / charsPerLine)));
-  const base = n.kind === 'area' ? 46 : n.kind === 'project' ? 42 : 38;
-  return base + lines * (n.kind === 'area' ? 22 : 18);
+  const c = CARD[n.kind];
+  const lines = Math.min(4, Math.max(1, Math.ceil(n.title.length / c.charsPerLine)));
+  return Math.ceil(c.fixed + lines * c.line);
 }
 
 function shown(n: GraphNode, opts: ViewOptions) {
