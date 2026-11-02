@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hyphast": {
+      "type": "http",
+      "url": "https://hyphast-946ea.web.app/mcp",
+      "headers": {
+        "Authorization": "Bearer ${HYPHAST_TOKEN}"
+      }
+    }
+  }
+}
