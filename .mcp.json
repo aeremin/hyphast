@@ -2,7 +2,7 @@
   "mcpServers": {
     "hyphast": {
       "type": "http",
-      "url": "https://hyphast-946ea.web.app/mcp",
+      "url": "https://hyphast.aerem.in/mcp",
       "headers": {
         "Authorization": "Bearer ${HYPHAST_TOKEN}"
       }

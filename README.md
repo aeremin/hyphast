@@ -24,16 +24,16 @@ React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosti
 
 ## Agent access (MCP)
 
-`https://hyphast-946ea.web.app/mcp` is a stateless [MCP](https://modelcontextprotocol.io) server (Streamable
+`https://hyphast.aerem.in/mcp` is a stateless [MCP](https://modelcontextprotocol.io) server (Streamable
 HTTP). Create an API token on the Settings page; it acts as you. Then, for Claude Code:
 
 ```sh
-claude mcp add --transport http hyphast https://hyphast-946ea.web.app/mcp --header "Authorization: Bearer hyp_…"
+claude mcp add --transport http hyphast https://hyphast.aerem.in/mcp --header "Authorization: Bearer hyp_…"
 ```
 
 This repo's `.mcp.json` does the same with the token from the `HYPHAST_TOKEN` environment variable.
 Clients that can't send headers (e.g. claude.ai custom connectors) can put the token in the URL instead:
-`https://hyphast-946ea.web.app/mcp/hyp_…` — keep such URLs private, as they end up in request logs.
+`https://hyphast.aerem.in/mcp/hyp_…` — keep such URLs private, as they end up in request logs.
 
 | Tool | What it does |
 | --- | --- |
@@ -77,6 +77,10 @@ In emulator mode, `window.emulatorSignIn(email, name)` signs in without the Goog
 firebase deploy                     # rules, functions (needs the Blaze plan), hosting, Google sign-in
 npm run deploy                      # builds the web app first, then the same
 ```
+
+The site is served at `https://hyphast.aerem.in` (and `https://hyphast-946ea.web.app`): a custom domain in
+Firebase Hosting, a CNAME to `hyphast-946ea.web.app` in the `aerem.in` Cloud DNS zone (project `alice-larp`), and
+an authorized domain under Authentication → Settings.
 
 Pushes to `main` deploy hosting through `.github/workflows/firebase-hosting-merge.yml` (pull requests get a
 preview channel). They need a `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret, which
