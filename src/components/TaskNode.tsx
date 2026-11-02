@@ -186,7 +186,7 @@ export function QuickAdd({ parent, className = '' }: { parent: GraphNode | null;
 
   return (
     <div
-      className={`nodrag nopan nowheel absolute top-full left-0 z-20 mt-2 w-72 rounded-lg border border-violet-300 bg-white p-2 shadow-lg ${className}`}
+      className={`nodrag nopan nowheel absolute top-full left-0 z-20 mt-2 w-72 rounded-lg border border-violet-300 bg-white p-2 text-slate-900 shadow-lg ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <input
