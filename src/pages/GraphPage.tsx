@@ -11,12 +11,13 @@ import {
   type Edge,
   type FinalConnectionState,
 } from '@xyflow/react';
-import { isOpen, type GraphNode } from '../lib/model';
+import { isOpen, type Graph, type GraphNode } from '../lib/model';
 import { computeVisible } from '../lib/layout';
 import { addBlocker, addRelated, createNode, deleteSubtree, setStatus } from '../lib/nodes';
 import { initials, memberName, useWorkspace } from '../context/WorkspaceContext';
-import TaskNode, { GraphActionsContext, QuickAdd, type GraphActions, type TaskFlowNode } from '../components/TaskNode';
+import TaskNode, { GraphActionsContext, type GraphActions, type TaskFlowNode } from '../components/TaskNode';
 import NodePanel from '../components/NodePanel';
+import Sidebar from '../components/Sidebar';
 
 const nodeTypes = { task: TaskNode };
 
@@ -25,12 +26,20 @@ type LinkMode = 'blocks' | 'related';
 interface ViewState {
   showClosed: boolean;
   collapsed: string[];
-  focusId: string | null;
+  collapsedAreas: string[];
+  /** Project shown when the URL doesn't name one. */
+  lastProjectId: string | null;
   linkMode: LinkMode;
 }
 
 const VIEW_KEY = 'hyphast.view';
-const DEFAULT_VIEW: ViewState = { showClosed: false, collapsed: [], focusId: null, linkMode: 'blocks' };
+const DEFAULT_VIEW: ViewState = {
+  showClosed: false,
+  collapsed: [],
+  collapsedAreas: [],
+  lastProjectId: null,
+  linkMode: 'blocks',
+};
 
 function loadView(): ViewState {
   try {
@@ -40,7 +49,7 @@ function loadView(): ViewState {
   }
 }
 
-/** Collapsing, focus and filters are per device, so each of you can look at the graph your own way. */
+/** Collapsing, the last project and filters are per device, so each of you can look at things your own way. */
 function useView() {
   const [view, setView] = useState(loadView);
   useEffect(() => {
@@ -53,7 +62,19 @@ function useView() {
   return [view, setView] as const;
 }
 
-const ROOT = '';
+/** The project a node belongs to (itself for a project; null for an area). */
+function projectOf(graph: Graph, n: GraphNode | null): GraphNode | null {
+  if (!n || n.kind === 'area') return null;
+  if (n.kind === 'project') return n;
+  return graph.ancestors(n).find((a) => a.kind === 'project') ?? null;
+}
+
+function toggled(list: string[], id: string, on?: boolean) {
+  const has = list.includes(id);
+  const want = on ?? !has;
+  if (want === has) return list;
+  return want ? [...list, id] : list.filter((x) => x !== id);
+}
 
 export default function GraphPage() {
   return (
@@ -74,14 +95,26 @@ function GraphView() {
   const [toast, setToast] = useState<string | null>(null);
   const [centerTarget, setCenterTarget] = useState<string | null>(selectedId);
   const [showHelp, setShowHelp] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const rf = useReactFlow();
   const wrapper = useRef<HTMLDivElement>(null);
 
+  // The project comes from the URL, else the selected node's project (links from the Next page),
+  // else the one shown last on this device.
+  const project =
+    [params.get('project'), projectOf(graph, graph.get(selectedId))?.id, view.lastProjectId]
+      .map((id) => graph.get(id))
+      .find((n) => n?.kind === 'project') ?? null;
+  const projectId = project?.id ?? null;
+  useEffect(() => {
+    if (projectId && projectId !== view.lastProjectId) setView((v) => ({ ...v, lastProjectId: projectId }));
+  }, [projectId, view.lastProjectId, setView]);
+
   const collapsed = useMemo(() => new Set(view.collapsed), [view.collapsed]);
-  const focusId = graph.get(view.focusId) ? view.focusId : null;
+  const collapsedAreas = useMemo(() => new Set(view.collapsedAreas), [view.collapsedAreas]);
   const visible = useMemo(
-    () => computeVisible(graph, { showClosed: view.showClosed, collapsed, focusId }),
-    [graph, view.showClosed, collapsed, focusId],
+    () => computeVisible(graph, { showClosed: view.showClosed, collapsed, rootId: projectId }),
+    [graph, view.showClosed, collapsed, projectId],
   );
   const selected = graph.get(selectedId);
 
@@ -90,39 +123,50 @@ function GraphView() {
     setTimeout(() => setToast((t) => (t === message ? null : t)), 3500);
   }, []);
 
-  /** Expands, unfocuses or shows closed nodes as needed so `id` is on screen, then selects it. */
+  const selectProject = useCallback(
+    (id: string) => {
+      setParams({ project: id }, { replace: true });
+      setAdding(null);
+      setSidebarOpen(false);
+      setTimeout(() => rf.fitView({ duration: 300, maxZoom: 1.1 }), 50);
+    },
+    [rf, setParams],
+  );
+
+  /**
+   * Selects a node, opening it in the side panel. Switches to its project and expands or shows
+   * closed nodes as needed so it's on screen.
+   */
   const select = useCallback(
     (id: string | null) => {
-      setParams(id ? { node: id } : {}, { replace: true });
       const n = graph.get(id);
+      const target = projectOf(graph, n)?.id ?? projectId;
+      setParams(
+        () => {
+          const p = new URLSearchParams();
+          if (target) p.set('project', target);
+          if (id) p.set('node', id);
+          return p;
+        },
+        { replace: true },
+      );
       if (!n) return;
+      if (target !== projectId) setTimeout(() => rf.fitView({ duration: 300, maxZoom: 1.1 }), 50);
       const ancestors = graph.ancestors(n);
       setView((v) => ({
         ...v,
         collapsed: v.collapsed.filter((c) => !ancestors.some((a) => a.id === c)),
-        focusId: v.focusId && v.focusId !== n.id && !ancestors.some((a) => a.id === v.focusId) ? null : v.focusId,
+        collapsedAreas: n.kind === 'area' ? v.collapsedAreas : v.collapsedAreas.filter((c) => c !== ancestors[0]?.id),
         showClosed: v.showClosed || ![n, ...ancestors].every((a) => isOpen(a.status)),
       }));
       setCenterTarget(n.id);
     },
-    [graph, setParams, setView],
+    [graph, projectId, rf, setParams, setView],
   );
 
   const toggleCollapse = useCallback(
-    (id: string) =>
-      setView((v) => ({
-        ...v,
-        collapsed: v.collapsed.includes(id) ? v.collapsed.filter((c) => c !== id) : [...v.collapsed, id],
-      })),
+    (id: string) => setView((v) => ({ ...v, collapsed: toggled(v.collapsed, id) })),
     [setView],
-  );
-
-  const setFocus = useCallback(
-    (id: string | null) => {
-      setView((v) => ({ ...v, focusId: id, collapsed: id ? v.collapsed.filter((c) => c !== id) : v.collapsed }));
-      setTimeout(() => rf.fitView({ duration: 300, maxZoom: 1.2 }), 50);
-    },
-    [rf, setView],
   );
 
   const actions: GraphActions = useMemo(
@@ -134,13 +178,12 @@ function GraphView() {
       },
       startAdd: (id) => {
         setAdding(id);
-        if (id !== ROOT) setView((v) => ({ ...v, collapsed: v.collapsed.filter((c) => c !== id) }));
+        setView((v) => ({ ...v, collapsed: v.collapsed.filter((c) => c !== id) }));
       },
       stopAdd: () => setAdding(null),
       addChildren: (parentId, titles) => {
         const parent = graph.get(parentId);
-        titles.forEach((t, i) => createNode(me, parent, t, i));
-        if (!parent) setCenterTarget(null);
+        if (parent) titles.forEach((t, i) => createNode(me, parent, t, i));
       },
     }),
     [graph, me, setView, toggleCollapse],
@@ -184,7 +227,9 @@ function GraphView() {
           zIndex: adding === n.id ? 1000 : undefined,
           data: {
             node: n,
-            hasChildren: graph.children(n.id).length > 0 && (view.showClosed || graph.children(n.id).some((c) => isOpen(c.status))),
+            hasChildren:
+              graph.children(n.id).length > 0 &&
+              (view.showClosed || graph.children(n.id).some((c) => isOpen(c.status))),
             hiddenCount: v.hiddenCount,
             collapsed: collapsed.has(n.id),
             blocked: graph.isBlocked(n),
@@ -204,7 +249,7 @@ function GraphView() {
   const edges: Edge[] = useMemo(() => {
     const out = new Map<string, Edge>();
     // Links into collapsed subtrees attach to the nearest visible ancestor; links to nodes hidden
-    // because they're closed aren't drawn.
+    // because they're closed, or in other projects, aren't drawn.
     const shownAs = (id: string): string | null => {
       for (let n = graph.get(id); n; n = graph.parent(n)) {
         if (!view.showClosed && !isOpen(n.status)) return null;
@@ -214,7 +259,7 @@ function GraphView() {
     };
     for (const v of visible.nodes) {
       const n = v.node;
-      if (n.parentId && visible.byId.has(n.parentId) && n.id !== focusId) {
+      if (n.parentId && visible.byId.has(n.parentId)) {
         out.set(`h-${n.id}`, {
           id: `h-${n.id}`,
           source: n.parentId,
@@ -262,7 +307,7 @@ function GraphView() {
       }
     }
     return [...out.values()];
-  }, [graph, visible, focusId, view.showClosed]);
+  }, [graph, visible, view.showClosed]);
 
   const onConnectEnd = useCallback(
     (event: MouseEvent | TouchEvent, state: FinalConnectionState) => {
@@ -301,16 +346,17 @@ function GraphView() {
       }
       const n = selected && visible.byId.has(selected.id) ? selected : null;
       if (!n) {
-        if (e.key === 'Tab' || e.key === 'n') {
+        if (e.key === 'Tab' && project) {
           e.preventDefault();
-          setAdding(ROOT);
+          actions.startAdd(project.id);
         } else if (e.key.startsWith('Arrow') && visible.nodes.length) {
           e.preventDefault();
           select(visible.nodes[0].node.id);
         }
         return;
       }
-      const siblings = (n.id === focusId ? [n] : graph.children(n.parentId)).filter((s) => visible.byId.has(s.id));
+      const isRoot = n.id === projectId;
+      const siblings = (isRoot ? [n] : graph.children(n.parentId)).filter((s) => visible.byId.has(s.id));
       const idx = siblings.findIndex((s) => s.id === n.id);
       const order = visible.nodes.findIndex((v) => v.node.id === n.id);
       switch (e.key) {
@@ -320,7 +366,7 @@ function GraphView() {
           break;
         case 'Enter':
           e.preventDefault();
-          setAdding(n.id === focusId ? n.id : (n.parentId ?? ROOT));
+          actions.startAdd(isRoot ? n.id : (n.parentId as string));
           break;
         case ' ':
           e.preventDefault();
@@ -328,9 +374,6 @@ function GraphView() {
           break;
         case 'c':
           toggleCollapse(n.id);
-          break;
-        case 'f':
-          setFocus(focusId === n.id ? null : n.id);
           break;
         case 'e':
         case 'F2':
@@ -341,13 +384,13 @@ function GraphView() {
           const count = graph.descendants(n.id).length;
           if (confirm(`Delete "${n.title}"${count ? ` and ${count} nodes below it` : ''}?`)) {
             deleteSubtree(me, graph, n.id);
-            select(n.parentId);
+            select(isRoot ? null : n.parentId);
           }
           break;
         }
         case 'ArrowLeft':
           e.preventDefault();
-          if (n.parentId && visible.byId.has(n.parentId) && n.id !== focusId) select(n.parentId);
+          if (!isRoot && n.parentId) select(n.parentId);
           break;
         case 'ArrowRight': {
           e.preventDefault();
@@ -370,92 +413,116 @@ function GraphView() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actions, adding, collapsed, focusId, graph, me, select, selected, setFocus, showHelp, toggleCollapse, visible]);
+  }, [actions, adding, collapsed, graph, me, project, projectId, select, selected, showHelp, toggleCollapse, visible]);
 
-  const focus = graph.get(focusId);
-  const empty = graph.nodes.length === 0;
+  const area = project ? graph.parent(project) : null;
+  const sidebar = (
+    <Sidebar
+      projectId={projectId}
+      showClosed={view.showClosed}
+      collapsedAreas={collapsedAreas}
+      onToggleArea={(id, open) =>
+        setView((v) => ({ ...v, collapsedAreas: toggled(v.collapsedAreas, id, open === undefined ? undefined : !open) }))
+      }
+      onSelectProject={selectProject}
+      onEdit={(id) => {
+        select(id);
+        setSidebarOpen(false);
+      }}
+    />
+  );
 
   return (
     <GraphActionsContext.Provider value={actions}>
-      <div className="flex h-full flex-col md:flex-row">
-        <div ref={wrapper} className="relative min-h-0 flex-1">
-          <Toolbar
-            focus={focus}
-            onClearFocus={() => setFocus(null)}
-            search={search}
-            onSearch={setSearch}
-            onSearchEnter={() => {
-              const hit = graph.nodes.find((n) => n.title.toLowerCase().includes(query));
-              if (hit) select(hit.id);
-            }}
-            assignee={assignee}
-            onAssignee={setAssignee}
-            view={view}
-            setView={setView}
-            onAddArea={() => setAdding(ROOT)}
-            onCollapseProjects={() =>
-              setView((v) => ({ ...v, collapsed: graph.nodes.filter((n) => n.kind === 'project').map((n) => n.id) }))
-            }
-            onExpandAll={() => setView((v) => ({ ...v, collapsed: [] }))}
-            onHelp={() => setShowHelp((s) => !s)}
-          />
-          {adding === ROOT && (
-            <div className="absolute top-14 left-3 z-20 w-72">
-              <QuickAdd parent={null} className="!static !mt-0" />
-            </div>
-          )}
-          {toast && (
-            <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white shadow-lg">
-              {toast}
-            </div>
-          )}
-          {showHelp && <Help onClose={() => setShowHelp(false)} />}
-          {empty && adding === null && (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-              <div className="card pointer-events-auto max-w-sm space-y-3 text-center">
-                <h2 className="text-lg font-semibold">Start with an area</h2>
-                <p className="text-sm text-slate-600">
-                  Areas are broad fields of work like “Embedded” or “Home”. Add projects to them, then tasks.
-                </p>
-                <button className="btn btn-primary" onClick={() => setAdding(ROOT)}>
-                  + Add an area
-                </button>
-              </div>
-            </div>
-          )}
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodeClick={(_, n) => select(n.id)}
-            onPaneClick={() => {
-              select(null);
-              setAdding(null);
-            }}
-            onConnectEnd={onConnectEnd}
-            nodesDraggable={false}
-            nodesConnectable
-            elementsSelectable
-            deleteKeyCode={null}
-            selectionKeyCode={null}
-            multiSelectionKeyCode={null}
-            disableKeyboardA11y
-            fitView
-            fitViewOptions={{ maxZoom: 1.1 }}
-            minZoom={0.1}
-            maxZoom={2}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background gap={24} color="#e2e8f0" />
-            <Controls showInteractive={false} position="bottom-right" />
-            <MiniMap pannable zoomable className="!hidden md:!block" position="bottom-left" nodeColor={miniMapColor} />
-          </ReactFlow>
-        </div>
-        {selected && (
-          <div className="h-[55vh] shrink-0 border-t border-slate-200 md:h-full md:w-96 md:border-t-0 md:border-l">
-            <NodePanel node={selected} onClose={() => select(null)} onSelect={select} onFocus={(id) => setFocus(id)} />
+      <div className="relative flex h-full">
+        <div className="hidden md:block">{sidebar}</div>
+        {sidebarOpen && (
+          <div className="absolute inset-0 z-30 flex md:hidden">
+            {sidebar}
+            <div className="flex-1 bg-slate-900/30" onClick={() => setSidebarOpen(false)} />
           </div>
         )}
+        <div className="flex min-w-0 flex-1 flex-col md:flex-row">
+          <div ref={wrapper} className="relative min-h-0 flex-1">
+            <Toolbar
+              project={project}
+              area={area}
+              onOpenSidebar={() => setSidebarOpen(true)}
+              onSelect={select}
+              search={search}
+              onSearch={setSearch}
+              onSearchEnter={() => {
+                const hit = graph.nodes.find((n) => n.kind !== 'area' && n.title.toLowerCase().includes(query));
+                if (hit) select(hit.id);
+              }}
+              assignee={assignee}
+              onAssignee={setAssignee}
+              view={view}
+              setView={setView}
+              onCollapseAll={() =>
+                setView((v) => ({
+                  ...v,
+                  collapsed: projectId
+                    ? graph.descendants(projectId).filter((n) => graph.children(n.id).length).map((n) => n.id)
+                    : [],
+                }))
+              }
+              onExpandAll={() => setView((v) => ({ ...v, collapsed: [] }))}
+              onHelp={() => setShowHelp((s) => !s)}
+            />
+            {toast && (
+              <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-sm text-white shadow-lg">
+                {toast}
+              </div>
+            )}
+            {showHelp && <Help onClose={() => setShowHelp(false)} />}
+            {!project && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
+                <div className="card pointer-events-auto max-w-sm space-y-3 text-center">
+                  <h2 className="text-lg font-semibold">Pick a project</h2>
+                  <p className="text-sm text-slate-600">
+                    Choose a project in the sidebar, or create an area and a project there with <b>+</b>.
+                  </p>
+                  <button className="btn btn-secondary md:hidden" onClick={() => setSidebarOpen(true)}>
+                    Show projects
+                  </button>
+                </div>
+              </div>
+            )}
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodeClick={(_, n) => select(n.id)}
+              onPaneClick={() => {
+                select(null);
+                setAdding(null);
+              }}
+              onConnectEnd={onConnectEnd}
+              nodesDraggable={false}
+              nodesConnectable
+              elementsSelectable
+              deleteKeyCode={null}
+              selectionKeyCode={null}
+              multiSelectionKeyCode={null}
+              disableKeyboardA11y
+              fitView
+              fitViewOptions={{ maxZoom: 1.1 }}
+              minZoom={0.1}
+              maxZoom={2}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background gap={24} color="#e2e8f0" />
+              <Controls showInteractive={false} position="bottom-right" />
+              <MiniMap pannable zoomable className="!hidden lg:!block" position="bottom-left" nodeColor={miniMapColor} />
+            </ReactFlow>
+          </div>
+          {selected && (
+            <div className="h-[55vh] shrink-0 border-t border-slate-200 md:h-full md:w-96 md:border-t-0 md:border-l">
+              <NodePanel node={selected} onClose={() => select(null)} onSelect={select} />
+            </div>
+          )}
+        </div>
       </div>
     </GraphActionsContext.Provider>
   );
@@ -463,14 +530,15 @@ function GraphView() {
 
 function miniMapColor(n: { data: Record<string, unknown> }) {
   const node = n.data.node as GraphNode;
-  if (node.kind === 'area') return '#7c3aed';
   if (node.kind === 'project') return '#c4b5fd';
   return isOpen(node.status) ? '#94a3b8' : '#e2e8f0';
 }
 
 function Toolbar(props: {
-  focus: GraphNode | null;
-  onClearFocus: () => void;
+  project: GraphNode | null;
+  area: GraphNode | null;
+  onOpenSidebar: () => void;
+  onSelect: (id: string) => void;
   search: string;
   onSearch: (s: string) => void;
   onSearchEnter: () => void;
@@ -478,25 +546,32 @@ function Toolbar(props: {
   onAssignee: (a: string) => void;
   view: ViewState;
   setView: (f: (v: ViewState) => ViewState) => void;
-  onAddArea: () => void;
-  onCollapseProjects: () => void;
+  onCollapseAll: () => void;
   onExpandAll: () => void;
   onHelp: () => void;
 }) {
   const { members, me } = useWorkspace();
-  const { view, setView } = props;
+  const { view, setView, project, area } = props;
   return (
     <div className="absolute inset-x-0 top-0 z-10 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white/90 px-3 py-2 text-sm backdrop-blur">
-      <button className="btn btn-primary btn-sm" onClick={props.onAddArea} title="Add an area (N)">
-        + Area
+      <button className="btn btn-secondary btn-sm md:hidden" onClick={props.onOpenSidebar} title="Projects">
+        ☰
       </button>
-      {props.focus && (
-        <span className="chip border-violet-300 bg-violet-50 text-violet-800">
-          Focus: <b className="max-w-40 truncate">{props.focus.title}</b>
-          <button className="text-violet-500 hover:text-violet-900" onClick={props.onClearFocus} title="Show everything">
-            ×
+      {project && (
+        <div className="flex min-w-0 items-center gap-1">
+          {area && (
+            <button className="max-w-32 truncate text-slate-500 hover:text-violet-700" onClick={() => props.onSelect(area.id)}>
+              {area.title}
+            </button>
+          )}
+          {area && <span className="text-slate-300">›</span>}
+          <button
+            className="max-w-48 truncate font-semibold text-slate-800 hover:text-violet-700"
+            onClick={() => props.onSelect(project.id)}
+          >
+            {project.title}
           </button>
-        </span>
+        </div>
       )}
       <input
         id="graph-search"
@@ -532,8 +607,11 @@ function Toolbar(props: {
         />
         Show done
       </label>
-      <div className="hidden items-center gap-1 text-slate-600 sm:flex" title="What dragging from a node's orange dot to another node creates">
-        <span className="hidden lg:inline">Drag link:</span>
+      <div
+        className="hidden items-center gap-1 text-slate-600 sm:flex"
+        title="What dragging from a node's orange dot to another node creates"
+      >
+        <span className="hidden xl:inline">Drag link:</span>
         {(['blocks', 'related'] as const).map((m) => (
           <button
             key={m}
@@ -545,7 +623,7 @@ function Toolbar(props: {
         ))}
       </div>
       <div className="ml-auto flex gap-1">
-        <button className="btn btn-secondary btn-sm" onClick={props.onCollapseProjects} title="Collapse every project">
+        <button className="btn btn-secondary btn-sm" onClick={props.onCollapseAll} title="Collapse every task with subtasks">
           Collapse
         </button>
         <button className="btn btn-secondary btn-sm" onClick={props.onExpandAll}>
@@ -560,13 +638,11 @@ function Toolbar(props: {
 }
 
 const SHORTCUTS: [string, string][] = [
-  ['Tab', 'Add a child to the selected node'],
+  ['Tab', 'Add a child to the selected node (or to the project)'],
   ['Enter', 'Add a sibling'],
-  ['N', 'Add an area (nothing selected)'],
   ['Space', 'Toggle done'],
   ['← → ↑ ↓', 'Move around the tree (→ expands)'],
   ['C', 'Collapse / expand'],
-  ['F', 'Focus on the subtree / back to everything'],
   ['E', 'Edit the title'],
   ['Delete', 'Delete'],
   ['/', 'Search'],
@@ -596,7 +672,8 @@ function Help({ onClose }: { onClose: () => void }) {
       </table>
       <p className="mt-3 text-xs text-slate-500">
         Drag from a node's orange dot onto another node to link them: “Blocks →” makes the target wait for the source.
-        Dashed orange arrows are open dependencies; dotted lines are related links.
+        Dashed orange arrows are open dependencies; dotted lines are related links. Links to other projects show on the
+        node's side panel.
       </p>
     </div>
   );

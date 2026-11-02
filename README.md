@@ -4,17 +4,20 @@ A shared task tracker for a household, shown as a graph. Built with React, TypeS
 React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosting).
 
 - **Area › Project › Task** hierarchy; tasks can have subtasks to any depth
-- **Graph view**: the hierarchy is laid out left to right as a tree, areas stacked one below another
+- **Sidebar**: areas as collapsible sections listing their projects, with open task counts; **+** adds an area or
+  a project, ✎ edits an area. Picking a project shows it in the graph; the URL (`/?project=…`) links to it
+- **Graph view**: one project at a time, its tasks laid out left to right as a tree
   - Collapse any node (its badge shows how many nodes are hidden); done and dropped nodes are hidden unless
-    **Show done** is on; **Focus** shows one subtree only. Collapsing and focus are remembered per device
+    **Show done** is on. Collapsed sections and nodes and the last project are remembered per device
   - Quick add: select a node and press <kbd>Tab</kbd> (or hover and click **+ task**), type, <kbd>Enter</kbd>,
     type the next one… Pasting a list adds one child per line
   - Keyboard: arrows move around the tree, <kbd>Enter</kbd> adds a sibling, <kbd>Space</kbd> toggles done,
-    <kbd>C</kbd> collapses, <kbd>F</kbd> focuses, <kbd>/</kbd> searches, <kbd>?</kbd> lists everything
+    <kbd>C</kbd> collapses, <kbd>/</kbd> searches, <kbd>?</kbd> lists everything
 - **Dependencies** ("blocked by"): drag from a node's orange dot onto another node. Open dependencies are
   dashed orange arrows; blocked tasks are amber. Dependency cycles are refused
 - **Related** links: same drag with the link mode set to **Related**; drawn as dotted lines
-- Links into a collapsed subtree are drawn to the collapsed node
+- Links into a collapsed subtree are drawn to the collapsed node; links to other projects are listed in the side
+  panel (the node still shows as blocked)
 - Side panel: status, assignee, due date, notes (Markdown), links, move, delete
 - **Next** page: what can be done right now (open, not blocked, no open subtasks), grouped by project — the
   view for a phone

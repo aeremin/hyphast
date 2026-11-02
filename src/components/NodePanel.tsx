@@ -18,12 +18,10 @@ export default function NodePanel({
   node,
   onClose,
   onSelect,
-  onFocus,
 }: {
   node: GraphNode;
   onClose: () => void;
   onSelect: (id: string) => void;
-  onFocus: (id: string) => void;
 }) {
   const { graph, members, me } = useWorkspace();
   const [title, setTitle] = useState(node.title);
@@ -207,9 +205,6 @@ export default function NodePanel({
         )}
 
         <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
-          <button className="btn btn-secondary btn-sm" onClick={() => onFocus(node.id)} title="Show only this subtree (F)">
-            Focus here
-          </button>
           {node.kind !== 'area' && (
             <button className="btn btn-secondary btn-sm" onClick={() => setPicking('parent')}>
               Move…

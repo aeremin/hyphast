@@ -3,8 +3,8 @@ import { isOpen, type Graph, type GraphNode } from './model';
 export interface ViewOptions {
   showClosed: boolean;
   collapsed: Set<string>;
-  /** Show only this node and what's below it. */
-  focusId: string | null;
+  /** The node shown with what's below it (the selected project); null shows nothing. */
+  rootId: string | null;
 }
 
 export interface VisibleNode {
@@ -44,12 +44,12 @@ const COLUMN_GAP = 64;
 
 /**
  * Left-to-right tidy tree: one column per depth, leaves stacked top to bottom in sibling (creation)
- * order, each parent centred on its children. Top-level trees (areas) are stacked one below another.
+ * order, each parent centred on its children.
  */
 export function computeVisible(graph: Graph, opts: ViewOptions): Visible {
   const out: VisibleNode[] = [];
   const kids = new Map<VisibleNode, VisibleNode[]>();
-  const focus = graph.get(opts.focusId);
+  const root = graph.get(opts.rootId);
   const visit = (n: GraphNode, depth: number): VisibleNode => {
     const collapsed = opts.collapsed.has(n.id);
     const hiddenCount = collapsed ? graph.descendants(n.id).filter((d) => shown(d, opts)).length : 0;
@@ -59,7 +59,8 @@ export function computeVisible(graph: Graph, opts: ViewOptions): Visible {
     kids.set(v, children.map((c) => visit(c, depth + 1)));
     return v;
   };
-  const roots = focus ? [visit(focus, 0)] : graph.roots().filter((r) => shown(r, opts)).map((r) => visit(r, 0));
+  // The root is shown even when it's closed, since it was picked explicitly.
+  const roots = root ? [visit(root, 0)] : [];
 
   const columnX: number[] = [0];
   for (const v of out) {
