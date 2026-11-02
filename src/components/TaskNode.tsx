@@ -162,11 +162,9 @@ export function QuickAdd({ parent, className = '' }: { parent: GraphNode | null;
   const actions = useContext(GraphActionsContext)!;
   const [value, setValue] = useState('');
   const input = useRef<HTMLInputElement>(null);
-  // autoFocus loses out to React Flow's rendering of the node, so focus once things have settled.
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => input.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, []);
+  // preventScroll: otherwise the browser scrolls React Flow's clipped container to reveal the input.
+  useEffect(() => input.current?.focus({ preventScroll: true }), []);
+
   const what = !parent ? 'area' : parent.kind === 'area' ? 'project' : parent.kind === 'project' ? 'task' : 'subtask';
 
   function submit(lines: string[]) {

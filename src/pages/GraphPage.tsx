@@ -180,6 +180,8 @@ function GraphView() {
           measured: { width: v.width, height: v.height },
           draggable: false,
           selected: n.id === selectedId,
+          // The quick-add box hangs below its node; lift that node above the ones under it.
+          zIndex: adding === n.id ? 1000 : undefined,
           data: {
             node: n,
             hasChildren: graph.children(n.id).length > 0 && (view.showClosed || graph.children(n.id).some((c) => isOpen(c.status))),
@@ -409,8 +411,8 @@ function GraphView() {
           )}
           {showHelp && <Help onClose={() => setShowHelp(false)} />}
           {empty && adding === null && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center">
-              <div className="card max-w-sm space-y-3 text-center">
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+              <div className="card pointer-events-auto max-w-sm space-y-3 text-center">
                 <h2 className="text-lg font-semibold">Start with an area</h2>
                 <p className="text-sm text-slate-600">
                   Areas are broad fields of work like “Embedded” or “Home”. Add projects to them, then tasks.
