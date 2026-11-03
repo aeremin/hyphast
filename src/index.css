@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @layer components {
   .btn {
@@ -29,6 +30,29 @@
   .chip {
     @apply inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700;
   }
+}
+
+/* Rendered notes: checklists without bullets, inline code without the plugin's literal backticks and quotes. */
+.prose .contains-task-list {
+  list-style: none;
+  padding-inline-start: 0;
+}
+.prose .contains-task-list .contains-task-list {
+  padding-inline-start: 1.25em;
+}
+.prose .task-list-item input {
+  margin: 0 0.4em 0 0;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.prose :where(code):not(:where(pre *))::before,
+.prose :where(code):not(:where(pre *))::after,
+.prose blockquote p::before,
+.prose blockquote p::after {
+  content: none;
+}
+.prose :where(code):not(:where(pre *)) {
+  @apply rounded bg-slate-100 px-1 py-0.5 font-normal;
 }
 
 /* Nodes are positioned by the auto-layout, so animate them into their new places. */

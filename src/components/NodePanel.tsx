@@ -11,6 +11,7 @@ import {
 } from '../lib/nodes';
 import { useWorkspace } from '../context/WorkspaceContext';
 import NodePicker from './NodePicker';
+import Notes from './Notes';
 
 type Picking = 'blocker' | 'blocks' | 'related' | 'parent' | null;
 
@@ -42,7 +43,7 @@ export default function NodePanel({
     if (!t) setTitle(node.title);
     else if (t !== node.title) updateNode(me, node.id, { title: t });
   };
-  const saveNotes = () => notes !== node.notes && updateNode(me, node.id, { notes });
+  const saveNotes = (n: string) => n !== node.notes && updateNode(me, node.id, { notes: n });
 
   const allowParent = useCallback(
     (n: GraphNode) => n.id !== node.parentId && !graph.moveError(node.id, n.id) && !parentError(node.kind, n),
@@ -148,17 +149,10 @@ export default function NodePanel({
           </label>
         </div>
 
-        <label className="block">
+        <div>
           <span className="label">Notes</span>
-          <textarea
-            className="input min-h-28 font-mono text-xs"
-            placeholder="Details, links, checklists (Markdown)…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={saveNotes}
-            onKeyDown={(e) => e.stopPropagation()}
-          />
-        </label>
+          <Notes key={node.id} value={notes} onChange={setNotes} onSave={saveNotes} />
+        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
