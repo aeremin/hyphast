@@ -152,6 +152,8 @@ export async function createNodes(items: NewNode[], me: string): Promise<GraphNo
   for (const [i, n] of created.entries()) {
     const parent = combined.get(n.parentId);
     if (!items[i].kind) n.kind = childKind(parent);
+    // New tasks go to whoever created them unless an assignee (or null for nobody) was given.
+    if (items[i].assignee === undefined && n.kind === "task") n.assignee = me;
     const err = parentError(n.kind, parent);
     if (err) throw new UserError(`Item ${i} ("${n.title}"): ${err}`);
     if (n.blockedBy.length > MAX_LINKS || n.related.length > MAX_LINKS) {

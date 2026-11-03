@@ -19,6 +19,7 @@ React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosti
 - Links into a collapsed subtree are drawn to the collapsed node; links to other projects are listed in the side
   panel (the node still shows as blocked)
 - Side panel: status, assignee, due date, notes (Markdown), links, move, delete
+- New tasks are assigned to whoever created them (in the app or through MCP); change or clear it in the side panel
 - **Next** page: what can be done right now (open, not blocked, no open subtasks), grouped by project — the
   view for a phone
 - **Shared workspace**: every member sees and edits everything. Members are added by email on the Settings page

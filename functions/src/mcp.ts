@@ -19,7 +19,8 @@ blockers (or its ancestors' blockers) are open and it has no open subtasks.
 
 Start with get_tree to see the structure and ids, or list_nodes with filter "actionable" to find
 what can be done next. Create many nodes at once with create_nodes, using "ref" to link new
-nodes to each other. Assignees can be given as "me", an email or a member's name.`;
+nodes to each other. Assignees can be given as "me", an email or a member's name; new tasks are
+assigned to their creator unless told otherwise.`;
 
 const MARK: Record<string, string> = {todo: "[ ]", in_progress: "[~]", done: "[x]", dropped: "[-]"};
 
@@ -195,7 +196,8 @@ export function buildServer(me: string): McpServer {
         parent: z.string().optional().describe("Id of an existing node or ref of a new one"),
         notes: z.string().optional().describe("Markdown"),
         status: status.optional().describe("Default todo"),
-        assignee: z.string().nullable().optional(),
+        assignee: z.string().nullable().optional()
+          .describe("Tasks default to you (the token's owner); null leaves the task unassigned"),
         due: z.string().nullable().optional().describe("YYYY-MM-DD"),
         blockedBy: z.array(z.string()).optional().describe("Ids or refs of nodes that must be finished first"),
         related: z.array(z.string()).optional().describe("Ids or refs of related nodes"),

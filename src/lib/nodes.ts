@@ -32,13 +32,15 @@ function report(err: unknown) {
  */
 export function createNode(me: string, parent: GraphNode | null, title: string, order = 0) {
   const ref = doc(nodesCol);
+  const kind = childKind(parent);
   setDoc(ref, {
-    kind: childKind(parent),
+    kind,
     title: title.trim(),
     notes: '',
     status: 'todo',
     parentId: parent?.id ?? null,
-    assignee: null,
+    // New tasks go to whoever created them.
+    assignee: kind === 'task' ? me : null,
     due: null,
     blockedBy: [],
     related: [],
