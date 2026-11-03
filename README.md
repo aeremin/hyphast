@@ -32,10 +32,11 @@ React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosti
 HTTP). Create an API token on the Settings page; it acts as you. Then, for Claude Code:
 
 ```sh
-claude mcp add --transport http hyphast https://hyphast.aerem.in/mcp --header "Authorization: Bearer hyp_…"
+claude mcp add --transport http --scope user hyphast https://hyphast.aerem.in/mcp --header "Authorization: Bearer hyp_…"
 ```
 
-This repo's `.mcp.json` does the same with the token from the `HYPHAST_TOKEN` environment variable.
+`--scope user` makes it available in every folder, including this repo (which deliberately has no `.mcp.json`:
+a project entry named `hyphast` would take precedence over the user one).
 Clients that can't send headers (e.g. claude.ai custom connectors) can put the token in the URL instead:
 `https://hyphast.aerem.in/mcp/hyp_…` — keep such URLs private, as they end up in request logs.
 

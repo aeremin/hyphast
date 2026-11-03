@@ -27,6 +27,6 @@ on the Settings page.
 
 ## Working with the user's tasks
 
-If the `hyphast` MCP server is connected (`.mcp.json`, token in `HYPHAST_TOKEN`), use it to read or update the
-real task graph. Start with `get_tree` or `list_nodes` with filter `actionable`. Create related tasks in one
+If the `hyphast` MCP server is connected (configured in the user's Claude Code user scope, not in this repo),
+use it to read or update the real task graph. Start with `get_tree` or `list_nodes` with filter `actionable`. Create related tasks in one
 `create_nodes` call using `ref`s. Prefer marking things `done`/`dropped` over deleting them.
