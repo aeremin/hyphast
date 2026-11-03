@@ -86,14 +86,14 @@ export default function Sidebar({
                 </span>
               </button>
               <button
-                className="hidden rounded px-1 text-slate-400 group-hover:block hover:bg-slate-300/60 hover:text-slate-700"
+                className="hidden rounded px-1 text-slate-400 group-hover:block pointer-coarse:block hover:bg-slate-300/60 hover:text-slate-700"
                 onClick={() => onEdit(area.id)}
                 title="Edit area"
               >
                 ✎
               </button>
               <button
-                className="mr-1 hidden rounded px-1 text-slate-400 group-hover:block hover:bg-slate-300/60 hover:text-slate-700"
+                className="mr-1 hidden rounded px-1 text-slate-400 group-hover:block pointer-coarse:block hover:bg-slate-300/60 hover:text-slate-700"
                 onClick={() => {
                   onToggleArea(area.id, true);
                   setAdding(area.id);
