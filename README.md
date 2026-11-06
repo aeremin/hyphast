@@ -98,13 +98,15 @@ an authorized domain under Authentication → Settings.
   `npm run test:emulators` (Firestore rules and the MCP server, end to end, against the emulators).
 - Pull requests from branches of this repo also run `firebase deploy --dry-run` against the real project
   (server-side rules compilation, functions build) and deploy a Hosting preview channel.
-- Pushes to `main` (merged pull requests) run the same checks, then `firebase deploy --force` of everything:
-  hosting, functions, Firestore rules and indexes, Google sign-in. `--force` deletes functions that are no
-  longer in the source.
+- Pushes to `main` (merged pull requests) run the same checks, then `firebase deploy --force --except auth`:
+  hosting, functions, Firestore rules and indexes. `--force` deletes functions that are no longer in the
+  source. The Google sign-in config (`auth` in `firebase.json`) isn't deployed from CI, because it goes
+  through an alpha provisioning API the service account can't call; after changing it, run
+  `firebase deploy --only auth` locally.
 
 It uses the `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret (the key of the
 `github-action-…@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
-Besides hosting, that account needs these roles to deploy everything:
+Besides hosting, that account needs these roles:
 
 ```sh
 SA=github-action-...@hyphast-946ea.iam.gserviceaccount.com   # see IAM in the Cloud console
