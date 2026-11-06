@@ -103,11 +103,11 @@ an authorized domain under Authentication → Settings.
   longer in the source.
 
 It uses the `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret (the key of the
-`github-action-1443419342@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
+`github-action-…@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
 Besides hosting, that account needs these roles to deploy everything:
 
 ```sh
-SA=github-action-1443419342@hyphast-946ea.iam.gserviceaccount.com
+SA=github-action-...@hyphast-946ea.iam.gserviceaccount.com   # see IAM in the Cloud console
 for role in cloudfunctions.admin run.admin iam.serviceAccountUser artifactregistry.admin \
     firebaserules.admin datastore.indexAdmin firebaseauth.admin firebasehosting.admin \
     serviceusage.serviceUsageConsumer serviceusage.apiKeysViewer; do
