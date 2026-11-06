@@ -2,8 +2,9 @@ name: CI/CD
 
 # Pull requests: build, lint, emulator tests; for branches of this repo also a dry-run deploy against
 # the real project (server-side rules compilation, functions build) and a Hosting preview channel.
-# Pushes to main (merged PRs): the same checks, then `firebase deploy` of everything in firebase.json
-# (Hosting, Functions, Firestore rules and indexes, Auth config).
+# Pushes to main (merged PRs): the same checks, then `firebase deploy` of Hosting, Functions and Firestore
+# rules and indexes. The Auth config (Google sign-in) is deployed by hand with `firebase deploy --only auth`:
+# it calls an alpha provisioning API that the CI service account isn't allowed to use.
 
 on:
   pull_request:
@@ -66,7 +67,7 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA }}
       - name: Validate the deploy (dry run)
-        run: firebase deploy --dry-run --non-interactive --project "$PROJECT_ID"
+        run: firebase deploy --dry-run --except auth --non-interactive --project "$PROJECT_ID"
       - name: Deploy to a Hosting preview channel
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -95,5 +96,5 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA }}
       # --force: delete functions that are no longer in the source and skip confirmation prompts.
-      - name: Deploy Hosting, Functions, Firestore rules and indexes, Auth
-        run: firebase deploy --non-interactive --force --project "$PROJECT_ID" --message "$GITHUB_SHA"
+      - name: Deploy Hosting, Functions, Firestore rules and indexes
+        run: firebase deploy --except auth --non-interactive --force --project "$PROJECT_ID" --message "$GITHUB_SHA"
