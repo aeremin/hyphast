@@ -19,7 +19,10 @@ See README.md for features, the data model and the MCP tools.
 npm run build                 # type-checks and builds the web app
 npm --prefix functions run lint
 npm --prefix functions run build
+npm run test:emulators        # rules + MCP smoke test against the emulators (Java 21+, build first)
 ```
+
+CI (`.github/workflows/ci.yml`) runs all of these on pull requests and deploys everything on pushes to `main`.
 
 Try changes against the emulators (`npm run emulators`, `npm run dev:emulators`; Java 21+), signing in with
 `window.emulatorSignIn(email, name)`. The MCP server is at `http://127.0.0.1:5000/mcp`; tokens can be created

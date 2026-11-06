@@ -1,0 +1,99 @@
+name: CI/CD
+
+# Pull requests: build, lint, emulator tests; for branches of this repo also a dry-run deploy against
+# the real project (server-side rules compilation, functions build) and a Hosting preview channel.
+# Pushes to main (merged PRs): the same checks, then `firebase deploy` of everything in firebase.json
+# (Hosting, Functions, Firestore rules and indexes, Auth config).
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  FIREBASE_TOOLS_VERSION: 15.12.0
+  PROJECT_ID: hyphast-946ea
+
+jobs:
+  check:
+    name: Build, lint, emulator tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: actions/setup-java@v6 # the Firestore emulator needs Java 21+
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ env.FIREBASE_TOOLS_VERSION }}
+      - name: Type-check and build the web app
+        run: npm run build
+      - name: Lint functions
+        run: npm --prefix functions run lint
+      - name: Build functions
+        run: npm --prefix functions run build
+      - name: Firestore rules and MCP server against the emulators
+        run: npm run test:emulators
+
+  preview:
+    name: Dry-run deploy and Hosting preview
+    # Secrets aren't available to PRs from forks.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm run build
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA }}
+      - name: Validate the deploy (dry run)
+        run: firebase deploy --dry-run --non-interactive --project "$PROJECT_ID"
+      - name: Deploy to a Hosting preview channel
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA }}
+          projectId: ${{ env.PROJECT_ID }}
+          firebaseToolsVersion: ${{ env.FIREBASE_TOOLS_VERSION }}
+
+  deploy:
+    name: Deploy to Firebase
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://hyphast.aerem.in
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: npm run build
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA }}
+      # --force: delete functions that are no longer in the source and skip confirmation prompts.
+      - name: Deploy Hosting, Functions, Firestore rules and indexes, Auth
+        run: firebase deploy --non-interactive --force --project "$PROJECT_ID" --message "$GITHUB_SHA"

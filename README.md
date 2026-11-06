@@ -76,6 +76,9 @@ npm run dev:emulators     # the web app against the emulators
 
 In emulator mode, `window.emulatorSignIn(email, name)` signs in without the Google popup (for automated tests).
 
+`npm run test:emulators` starts the emulators with a demo project and runs `scripts/smoke-test.mjs`: checks of
+the Firestore rules and of the MCP server through the Hosting rewrite (build the web app first).
+
 ## Deploying
 
 ```sh
@@ -87,9 +90,30 @@ The site is served at `https://hyphast.aerem.in` (and `https://hyphast-946ea.web
 Firebase Hosting, a CNAME to `hyphast-946ea.web.app` in the `aerem.in` Cloud DNS zone (project `alice-larp`), and
 an authorized domain under Authentication → Settings.
 
-Pushes to `main` deploy hosting through `.github/workflows/firebase-hosting-merge.yml` (pull requests get a
-preview channel). They need a `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret, which
-`firebase init hosting:github` creates. Rules and functions are deployed with the CLI.
+### CI/CD
+
+`.github/workflows/ci.yml`:
+
+- Every pull request: type-check and build the web app, lint and build the functions, and
+  `npm run test:emulators` (Firestore rules and the MCP server, end to end, against the emulators).
+- Pull requests from branches of this repo also run `firebase deploy --dry-run` against the real project
+  (server-side rules compilation, functions build) and deploy a Hosting preview channel.
+- Pushes to `main` (merged pull requests) run the same checks, then `firebase deploy --force` of everything:
+  hosting, functions, Firestore rules and indexes, Google sign-in. `--force` deletes functions that are no
+  longer in the source.
+
+It uses the `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret (the key of the
+`github-action-…@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
+Besides hosting, that account needs these roles to deploy everything:
+
+```sh
+SA=github-action-...@hyphast-946ea.iam.gserviceaccount.com   # see IAM in the Cloud console
+for role in cloudfunctions.admin run.admin iam.serviceAccountUser artifactregistry.admin \
+    firebaserules.admin datastore.indexAdmin firebaseauth.admin firebasehosting.admin \
+    serviceusage.serviceUsageConsumer serviceusage.apiKeysViewer; do
+  gcloud projects add-iam-policy-binding hyphast-946ea --member="serviceAccount:$SA" --role="roles/$role" --condition=None
+done
+```
 
 ## Data model
 
