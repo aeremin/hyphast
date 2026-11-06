@@ -1,0 +1,17 @@
+name: Set up
+description: Node, dependencies of the web app and the functions, and the Firebase CLI.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24 # functions/package.json engines
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          functions/package-lock.json
+    - shell: bash
+      run: |
+        npm ci
+        npm ci --prefix functions
+        npm install --global "firebase-tools@$FIREBASE_TOOLS_VERSION"
