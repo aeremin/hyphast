@@ -25,6 +25,8 @@ React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosti
 - **Shared workspace**: every member sees and edits everything. Members are added by email on the Settings page
 - **Agent access** through an MCP server (see below)
 - Works offline: edits apply instantly and sync when back online
+- **Installable** as an app (PWA): on Android, Chrome's menu › *Install app* / *Add to Home screen*. Icons are
+  rendered from `public/favicon.svg` and `public/icon-maskable.svg` by `node scripts/make-icons.cjs`
 
 ## Agent access (MCP)
 
