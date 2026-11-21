@@ -1,6 +1,7 @@
 import { createContext, memo, useContext, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { isOpen, type GraphNode } from '../lib/model';
+import PaperclipIcon from './PaperclipIcon';
 
 export interface TaskNodeData extends Record<string, unknown> {
   node: GraphNode;
@@ -117,8 +118,12 @@ function TaskNodeView({ data, selected }: NodeProps<TaskFlowNode>) {
         {node.due && <span className={overdue ? 'font-semibold text-red-600' : ''}>📅 {node.due.slice(5)}</span>}
         {node.notes && <span title="Has notes">📝</span>}
         {node.attachments.length > 0 && (
-          <span title={`${node.attachments.length} attachment${node.attachments.length > 1 ? 's' : ''}`}>
-            📎{node.attachments.length > 1 ? node.attachments.length : ''}
+          <span
+            title={`${node.attachments.length} attachment${node.attachments.length > 1 ? 's' : ''}`}
+            className="flex items-center"
+          >
+            <PaperclipIcon className="h-3 w-3" />
+            {node.attachments.length > 1 ? node.attachments.length : ''}
           </span>
         )}
         {data.assigneeInitials && (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { formatBytes, type Attachment, type GraphNode } from '../lib/model';
+import PaperclipIcon from './PaperclipIcon';
 import { attachError, attachmentUrl, removeAttachment, uploadAttachment } from '../lib/attachments';
 
 interface Upload {
@@ -137,7 +138,9 @@ function AttachmentRow({
       {image && url ? (
         <img src={url} alt="" className="h-8 w-8 shrink-0 rounded object-cover" loading="lazy" />
       ) : (
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-100 text-base">📎</span>
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-slate-100 text-slate-500">
+          <PaperclipIcon className="h-4 w-4" />
+        </span>
       )}
       <a
         href={url ?? undefined}
