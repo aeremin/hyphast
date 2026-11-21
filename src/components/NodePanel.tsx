@@ -10,6 +10,7 @@ import {
   updateNode,
 } from '../lib/nodes';
 import { useWorkspace } from '../context/WorkspaceContext';
+import Attachments from './Attachments';
 import NodePicker from './NodePicker';
 import Notes from './Notes';
 
@@ -153,6 +154,8 @@ export default function NodePanel({
           <span className="label">Notes</span>
           <Notes key={node.id} value={notes} onChange={setNotes} onSave={saveNotes} />
         </div>
+
+        <Attachments node={node} me={me} />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

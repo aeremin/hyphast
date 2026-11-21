@@ -18,6 +18,32 @@ export const STATUS_LABELS: Record<NodeStatus, string> = {
 export const MAX_TITLE = 500;
 export const MAX_NOTES = 50000;
 export const MAX_LINKS = 100;
+// Keep in sync with storage.rules.
+export const MAX_ATTACHMENTS = 50;
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/** A file attached to a node. The file itself is in Cloud Storage at attachmentPath(nodeId, id). */
+export interface Attachment {
+  id: string;
+  /** Original file name, shown and used when downloading. */
+  name: string;
+  /** Bytes. */
+  size: number;
+  contentType: string;
+  uploadedBy: string;
+  /** Milliseconds since epoch. */
+  uploadedAt: number;
+}
+
+export function attachmentPath(nodeId: string, attachmentId: string): string {
+  return `attachments/${nodeId}/${attachmentId}`;
+}
+
+export function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
 
 /** Fields stored in nodes/{id}. Timestamps are Firestore timestamps (or null before the server sets them). */
 export interface NodeFields {
@@ -35,6 +61,8 @@ export interface NodeFields {
   blockedBy: string[];
   /** Ids of loosely related nodes. Stored on one side only; the link is undirected. */
   related: string[];
+  /** Files attached to this node; may be missing on older nodes. */
+  attachments?: Attachment[];
   createdBy: string;
   updatedBy: string;
   createdAt: unknown;
@@ -47,6 +75,7 @@ export interface GraphNode extends Pick<
   "kind" | "title" | "notes" | "status" | "parentId" | "assignee" | "due" | "blockedBy" | "related"
 > {
   id: string;
+  attachments: Attachment[];
   /** Milliseconds since epoch; used to keep sibling order stable. */
   createdMs: number;
 }

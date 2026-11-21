@@ -1,8 +1,10 @@
 import {getFirestore, FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
+import * as logger from "firebase-functions/logger";
 import {
-  Graph, childKind, isOpen, isValidDate, parentError,
+  Graph, attachmentPath, childKind, isOpen, isValidDate, parentError,
   MAX_LINKS, MAX_NOTES, MAX_TITLE,
-  type GraphNode, type NodeKind, type NodeStatus,
+  type Attachment, type GraphNode, type NodeKind, type NodeStatus,
 } from "./model.js";
 
 export const OWNER_EMAIL = "a.eremin.msu@gmail.com";
@@ -33,6 +35,7 @@ export async function loadGraph(): Promise<Graph> {
       due: data.due ?? null,
       blockedBy: data.blockedBy ?? [],
       related: data.related ?? [],
+      attachments: data.attachments ?? [],
       createdMs: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : 0,
     };
   }));
@@ -145,6 +148,7 @@ export async function createNodes(items: NewNode[], me: string): Promise<GraphNo
       due: checkDue(item.due),
       blockedBy: [...new Set(links(item.blockedBy, "blocker"))],
       related: [...new Set(links(item.related, "related node"))],
+      attachments: [],
       createdMs: now + i,
     });
   }
@@ -304,5 +308,22 @@ export async function deleteNodes(ids: string[], recursive: boolean, me: string)
     });
   }
   await batch.commit();
+  // Best effort: a leftover file is only wasted space.
+  await Promise.all([...doomed.keys()].map((id) =>
+    getStorage().bucket().deleteFiles({prefix: `attachments/${id}/`})
+      .catch((err) => logger.warn(`Couldn't delete the attachments of ${id}`, err))));
   return [...doomed.values()];
+}
+
+/** Downloads an attachment's bytes. */
+export async function readAttachment(nodeId: string, attachmentId: string): Promise<{
+  attachment: Attachment; data: Buffer;
+}> {
+  const graph = await loadGraph();
+  const n = graph.get(nodeId);
+  if (!n) throw new UserError(`Unknown node "${nodeId}"`);
+  const attachment = n.attachments.find((a) => a.id === attachmentId || a.name === attachmentId);
+  if (!attachment) throw new UserError(`"${n.title}" has no attachment "${attachmentId}"`);
+  const [data] = await getStorage().bucket().file(attachmentPath(nodeId, attachment.id)).download();
+  return {attachment, data};
 }

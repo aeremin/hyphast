@@ -116,6 +116,11 @@ function TaskNodeView({ data, selected }: NodeProps<TaskFlowNode>) {
         {data.actionable && node.status === 'todo' && <span className="text-emerald-600">● ready</span>}
         {node.due && <span className={overdue ? 'font-semibold text-red-600' : ''}>📅 {node.due.slice(5)}</span>}
         {node.notes && <span title="Has notes">📝</span>}
+        {node.attachments.length > 0 && (
+          <span title={`${node.attachments.length} attachment${node.attachments.length > 1 ? 's' : ''}`}>
+            📎{node.attachments.length > 1 ? node.attachments.length : ''}
+          </span>
+        )}
         {data.assigneeInitials && (
           <span
             title={data.assigneeName}

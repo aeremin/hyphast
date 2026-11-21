@@ -1,8 +1,8 @@
 import {McpServer} from "@modelcontextprotocol/sdk/server/mcp.js";
 import {z} from "zod";
-import {Graph, NODE_KINDS, NODE_STATUSES, isOpen, type GraphNode} from "./model.js";
+import {Graph, NODE_KINDS, NODE_STATUSES, formatBytes, isOpen, type GraphNode} from "./model.js";
 import {
-  UserError, createNodes, deleteNodes, loadGraph, loadMembers, updateNodes,
+  UserError, createNodes, deleteNodes, loadGraph, loadMembers, readAttachment, updateNodes,
   type Member,
 } from "./store.js";
 
@@ -18,7 +18,8 @@ Statuses: todo, in_progress, done, dropped. A task is "actionable" when it is op
 blockers (or its ancestors' blockers) are open and it has no open subtasks.
 
 Start with get_tree to see the structure and ids, or list_nodes with filter "actionable" to find
-what can be done next. Create many nodes at once with create_nodes, using "ref" to link new
+what can be done next. Files attached to nodes (photos, manuals, receipts...) are listed by get_node
+and read with get_attachment. Create many nodes at once with create_nodes, using "ref" to link new
 nodes to each other. Assignees can be given as "me", an email or a member's name; new tasks are
 assigned to their creator unless told otherwise.`;
 
@@ -72,6 +73,11 @@ async function run(body: () => Promise<unknown>) {
     throw err;
   }
 }
+
+/** Larger attachments aren't returned through MCP. */
+const MAX_MCP_BYTES = 10 * 1024 * 1024;
+const TEXT_TYPES = ["application/json", "application/xml", "application/javascript", "application/x-yaml",
+  "application/yaml", "application/toml", "application/x-sh"];
 
 const status = z.enum(NODE_STATUSES as [string, ...string[]]);
 const kind = z.enum(NODE_KINDS as [string, ...string[]]);
@@ -179,9 +185,44 @@ export function buildServer(me: string): McpServer {
       blockedBy: g.blockers(n).map(brief),
       blocks: g.blocks(n.id).map(brief),
       related: g.relatedNodes(n.id).map(brief),
+      attachments: n.attachments.map((a) => ({
+        id: a.id, name: a.name, contentType: a.contentType, size: formatBytes(a.size),
+        uploadedBy: memberName(a.uploadedBy, members), uploadedAt: new Date(a.uploadedAt).toISOString(),
+      })),
       ...(n.kind !== "task" ? {taskCounts: g.taskCounts(n.id)} : {}),
     };
   }));
+
+  server.registerTool("get_attachment", {
+    title: "Read an attachment",
+    description: "Contents of a file attached to a node (see get_node for the list). Images are returned as " +
+      "images, text files as text, other files (e.g. PDFs) as an embedded resource.",
+    inputSchema: {
+      nodeId: z.string(),
+      attachment: z.string().describe("Attachment id, or its file name"),
+    },
+    annotations: {readOnlyHint: true},
+  }, async ({nodeId, attachment: which}) => {
+    try {
+      const {attachment: a, data} = await readAttachment(nodeId, which);
+      if (data.length > MAX_MCP_BYTES) {
+        return text(`"${a.name}" is ${formatBytes(data.length)}, too large to return (limit ` +
+          `${formatBytes(MAX_MCP_BYTES)}). Ask the user to open it in Hyphast instead.`);
+      }
+      const type = a.contentType.split(";")[0].trim().toLowerCase();
+      if (type.startsWith("image/")) {
+        return {content: [{type: "image" as const, data: data.toString("base64"), mimeType: type}]};
+      }
+      if (type.startsWith("text/") || TEXT_TYPES.includes(type)) return text(data.toString("utf8"));
+      return {content: [{
+        type: "resource" as const,
+        resource: {uri: `hyphast://nodes/${nodeId}/attachments/${a.id}`, mimeType: type, blob: data.toString("base64")},
+      }]};
+    } catch (err) {
+      if (err instanceof UserError) return {...text(`Error: ${err.message}`), isError: true};
+      throw err;
+    }
+  });
 
   server.registerTool("create_nodes", {
     title: "Create nodes",

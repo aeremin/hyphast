@@ -7,6 +7,7 @@ import {
   persistentLocalCache,
   persistentMultipleTabManager,
 } from 'firebase/firestore';
+import { connectStorageEmulator, getStorage } from 'firebase/storage';
 
 const app = initializeApp({
   apiKey: 'AIzaSyC6N6M6FOh8obJo11YBGdoXceWaXMXhh-s',
@@ -30,7 +31,11 @@ export const db = initializeFirestore(app, {
     : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 });
 
+// Attachments (see storage.rules).
+export const storage = getStorage(app);
+
 if (useEmulators) {
+  connectStorageEmulator(storage, '127.0.0.1', 9199);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
   // For automated UI tests: the auth emulator accepts unsigned Google ID tokens.
