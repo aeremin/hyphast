@@ -8,6 +8,8 @@ import {
 } from "./model.js";
 
 export const OWNER_EMAIL = "a.eremin.msu@gmail.com";
+// The `main` storage target in .firebaserc; named so the emulators use the same bucket.
+const BUCKET = "hyphast-946ea.firebasestorage.app";
 
 export interface Member {
   email: string;
@@ -310,7 +312,7 @@ export async function deleteNodes(ids: string[], recursive: boolean, me: string)
   await batch.commit();
   // Best effort: a leftover file is only wasted space.
   await Promise.all([...doomed.keys()].map((id) =>
-    getStorage().bucket().deleteFiles({prefix: `attachments/${id}/`})
+    getStorage().bucket(BUCKET).deleteFiles({prefix: `attachments/${id}/`})
       .catch((err) => logger.warn(`Couldn't delete the attachments of ${id}`, err))));
   return [...doomed.values()];
 }
@@ -324,6 +326,6 @@ export async function readAttachment(nodeId: string, attachmentId: string): Prom
   if (!n) throw new UserError(`Unknown node "${nodeId}"`);
   const attachment = n.attachments.find((a) => a.id === attachmentId || a.name === attachmentId);
   if (!attachment) throw new UserError(`"${n.title}" has no attachment "${attachmentId}"`);
-  const [data] = await getStorage().bucket().file(attachmentPath(nodeId, attachment.id)).download();
+  const [data] = await getStorage().bucket(BUCKET).file(attachmentPath(nodeId, attachment.id)).download();
   return {attachment, data};
 }

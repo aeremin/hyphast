@@ -1,5 +1,21 @@
 {
   "projects": {
     "default": "hyphast-946ea"
+  },
+  "targets": {
+    "hyphast-946ea": {
+      "storage": {
+        "main": [
+          "hyphast-946ea.firebasestorage.app"
+        ]
+      }
+    },
+    "demo-hyphast": {
+      "storage": {
+        "main": [
+          "hyphast-946ea.firebasestorage.app"
+        ]
+      }
+    }
   }
 }

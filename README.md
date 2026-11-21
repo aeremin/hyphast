@@ -110,7 +110,9 @@ an authorized domain under Authentication → Settings.
   `firebase deploy --only auth` locally.
 
 Attachments need the default Cloud Storage bucket (`hyphast-946ea.firebasestorage.app`), created once in the
-console under Storage › Get started; `storage.rules` is deployed with everything else.
+console under Storage › Get started; `storage.rules` is deployed with everything else. The bucket is named
+through the `main` storage target in `.firebaserc` (also mapped for the `demo-hyphast` emulator project), so
+deploys don't need to look up the default bucket and the emulators use the same bucket name.
 
 It uses the `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret (the key of the
 `github-action-…@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
