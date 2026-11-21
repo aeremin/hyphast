@@ -22,7 +22,7 @@ import { connectStorageEmulator, getBytes, getStorage, ref, uploadBytes } from '
 const PROJECT = process.env.GCLOUD_PROJECT || 'demo-hyphast';
 const OWNER = 'a.eremin.msu@gmail.com';
 const MCP_URL = 'http://127.0.0.1:5000/mcp';
-const BUCKET = `${PROJECT}.appspot.com`;
+const BUCKET = 'hyphast-946ea.firebasestorage.app'; // the `main` storage target in .firebaserc
 
 const apps = [];
 let failures = 0;
