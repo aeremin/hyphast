@@ -9,6 +9,7 @@ import {
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
+import { deleteAttachmentFiles } from './attachments';
 import { db } from './firebase';
 import { childKind, isOpen, type Graph, type GraphNode, type NodeStatus } from './model';
 
@@ -102,5 +103,8 @@ export function deleteSubtree(me: string, graph: Graph, id: string) {
       batch.update(doc(nodesCol, n.id), { blockedBy, related, ...meta(me) });
     }
   }
-  batch.commit().catch(report);
+  batch
+    .commit()
+    .then(() => Promise.all([...doomed].map((d) => deleteAttachmentFiles(d, graph.get(d)?.attachments ?? []))))
+    .catch(report);
 }

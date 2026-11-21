@@ -56,6 +56,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               due: data.due ?? null,
               blockedBy: data.blockedBy ?? [],
               related: data.related ?? [],
+              attachments: data.attachments ?? [],
               createdMs: data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : Date.now(),
             };
           }),

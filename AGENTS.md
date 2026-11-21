@@ -12,6 +12,8 @@ See README.md for features, the data model and the MCP tools.
 - `functions/src/mcp.ts`, `store.ts`, `index.ts` — the MCP server (Cloud Function `mcp`, region europe-west6,
   served at `/mcp` through a Hosting rewrite).
 - `firestore.rules` — validation mirrors `NodeFields` and the `MAX_*` constants in `model.ts`; change both.
+- `storage.rules` — attachments (`attachments/{nodeId}/{attachmentId}`); the size limit mirrors
+  `MAX_ATTACHMENT_BYTES`. Web uploads are in `src/lib/attachments.ts`, the panel UI in `src/components/Attachments.tsx`.
 
 ## Checks
 

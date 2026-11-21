@@ -15,11 +15,14 @@ import {
   setDoc,
   terminate,
   where,
+  updateDoc,
 } from 'firebase/firestore';
+import { connectStorageEmulator, getBytes, getStorage, ref, uploadBytes } from 'firebase/storage';
 
 const PROJECT = process.env.GCLOUD_PROJECT || 'demo-hyphast';
 const OWNER = 'a.eremin.msu@gmail.com';
 const MCP_URL = 'http://127.0.0.1:5000/mcp';
+const BUCKET = `${PROJECT}.appspot.com`;
 
 const apps = [];
 let failures = 0;
@@ -42,7 +45,7 @@ async function denied(promise) {
   try {
     await promise;
   } catch (err) {
-    if (err?.code === 'permission-denied') return;
+    if (err?.code === 'permission-denied' || err?.code === 'storage/unauthorized') return;
     throw err;
   }
   throw new Error('expected permission-denied, but the request succeeded');
@@ -50,12 +53,13 @@ async function denied(promise) {
 
 /** A client app signed in as `email` (or anonymous when null), like the web app in emulator mode. */
 async function client(email) {
-  const app = initializeApp({ apiKey: 'demo-key', projectId: PROJECT }, `app-${apps.length}`);
+  const app = initializeApp({ apiKey: 'demo-key', projectId: PROJECT, storageBucket: BUCKET }, `app-${apps.length}`);
   apps.push(app);
   const auth = getAuth(app);
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
   const db = getFirestore(app);
   connectFirestoreEmulator(db, '127.0.0.1', 8080);
+  connectStorageEmulator(getStorage(app), '127.0.0.1', 9199);
   if (email) {
     const idToken = JSON.stringify({ sub: email, email, email_verified: true, name: email });
     await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
@@ -134,6 +138,29 @@ await check('rules: members can create their own API token', () =>
 await check('rules: tokens cannot be created for someone else', () =>
   denied(setDoc(doc(owner, 'apiTokens', 'other'), { email: 'someone@example.com', name: 'x' })));
 
+// Storage rules (attachments)
+
+const attachmentId = 'smokefile';
+const attachmentText = 'hello from an attachment';
+const fileRef = (db, nodeId = areaId, id = attachmentId) => ref(getStorage(db.app), `attachments/${nodeId}/${id}`);
+await check('storage: non-members cannot upload attachments', () =>
+  denied(uploadBytes(fileRef(outsider), new TextEncoder().encode('x'))));
+await check('storage: attachments need an existing node', () =>
+  denied(uploadBytes(fileRef(owner, 'no-such-node'), new TextEncoder().encode('x'))));
+await check('storage: attachments over 25 MB are rejected', () =>
+  denied(uploadBytes(fileRef(owner, areaId, 'big'), new Uint8Array(25 * 1024 * 1024 + 1))));
+await check('storage: members can upload and attach a file', async () => {
+  await uploadBytes(fileRef(owner), new TextEncoder().encode(attachmentText), { contentType: 'text/plain' });
+  await updateDoc(doc(owner, 'nodes', areaId), {
+    attachments: [{
+      id: attachmentId, name: 'hello.txt', size: attachmentText.length, contentType: 'text/plain',
+      uploadedBy: OWNER, uploadedAt: Date.now(),
+    }],
+    updatedBy: OWNER,
+  });
+});
+await check('storage: non-members cannot read attachments', () => denied(getBytes(fileRef(outsider))));
+
 // MCP server through the Hosting rewrite
 
 await check('mcp: GET is rejected with 405', async () => {
@@ -183,6 +210,24 @@ await check('mcp: get_tree shows the new nodes', async () => {
 await check('mcp: list_nodes actionable', async () => {
   const text = await callTool('list_nodes', { filter: 'actionable' }, token);
   assert(text.includes('Smoke task'), `missing "Smoke task":\n${text}`);
+});
+await check('mcp: get_node lists attachments', async () => {
+  const text = await callTool('get_node', { id: areaId }, token);
+  assert(text.includes('hello.txt'), `missing attachment:\n${text}`);
+});
+await check('mcp: get_attachment returns the file', async () => {
+  const text = await callTool('get_attachment', { nodeId: areaId, attachment: 'hello.txt' }, token);
+  assert(text === attachmentText, `unexpected contents: ${text}`);
+});
+await check('mcp: delete_nodes deletes attachments too', async () => {
+  await callTool('delete_nodes', { ids: [areaId], recursive: true }, token);
+  try {
+    await getBytes(fileRef(owner));
+  } catch (err) {
+    if (err?.code === 'storage/object-not-found') return;
+    throw err;
+  }
+  throw new Error('the attachment is still there');
 });
 
 for (const app of apps) {

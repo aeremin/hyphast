@@ -1,7 +1,7 @@
 # Hyphast
 
 A shared task tracker for a household, shown as a graph. Built with React, TypeScript, Vite, Tailwind CSS,
-React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosting).
+React Flow and Firebase (Authentication, Cloud Firestore, Cloud Storage, Cloud Functions, Hosting).
 
 - **Area › Project › Task** hierarchy; tasks can have subtasks to any depth
 - **Sidebar**: areas as collapsible sections listing their projects, with open task counts; **+** adds an area or
@@ -18,7 +18,9 @@ React Flow and Firebase (Authentication, Cloud Firestore, Cloud Functions, Hosti
 - **Related** links: same drag with the link mode set to **Related**; drawn as dotted lines
 - Links into a collapsed subtree are drawn to the collapsed node; links to other projects are listed in the side
   panel (the node still shows as blocked)
-- Side panel: status, assignee, due date, notes (Markdown), links, move, delete
+- Side panel: status, assignee, due date, notes (Markdown), attachments, links, move, delete
+- **Attachments**: add files to any node with **+ Add** or by dropping them on the side panel (up to 50 files of
+  25 MB each). They are stored in Cloud Storage; nodes with attachments show 📎 in the graph
 - New tasks are assigned to whoever created them (in the app or through MCP); change or clear it in the side panel
 - **Next** page: what can be done right now (open, not blocked, no open subtasks), grouped by project — the
   view for a phone
@@ -46,7 +48,8 @@ Clients that can't send headers (e.g. claude.ai custom connectors) can put the t
 | --- | --- |
 | `get_tree` | Outline of areas/projects/tasks with ids, statuses, assignees, due dates, blockers |
 | `list_nodes` | Filtered flat list: `open`, `actionable`, `blocked`, `in_progress`, `closed`; by assignee, subtree, text, due date |
-| `get_node` | One node with notes, children, blockers, what it blocks, related nodes |
+| `get_node` | One node with notes, attachments, children, blockers, what it blocks, related nodes |
+| `get_attachment` | Contents of an attached file (images as images, text as text, others as a resource; up to 10 MB) |
 | `create_nodes` | Create many nodes in one call; `ref`s let new nodes be parents/blockers of each other |
 | `update_nodes` | Status, title, notes, assignee, due, move, add/remove dependencies and related links |
 | `delete_nodes` | Permanent delete (`recursive` for subtrees); prefer status `done`/`dropped` |
@@ -72,7 +75,7 @@ The owner email (`a.eremin.msu@gmail.com`) is hard-coded as a member in `firesto
 The emulators need Java 21+.
 
 ```sh
-npm run emulators         # auth, firestore, functions and hosting (MCP at http://127.0.0.1:5000/mcp)
+npm run emulators         # auth, firestore, storage, functions and hosting (MCP at http://127.0.0.1:5000/mcp)
 npm run dev:emulators     # the web app against the emulators
 ```
 
@@ -84,7 +87,7 @@ the Firestore rules and of the MCP server through the Hosting rewrite (build the
 ## Deploying
 
 ```sh
-firebase deploy                     # rules, functions (needs the Blaze plan), hosting, Google sign-in
+firebase deploy                     # rules, functions (needs the Blaze plan), hosting, storage rules, Google sign-in
 npm run deploy                      # builds the web app first, then the same
 ```
 
@@ -106,6 +109,9 @@ an authorized domain under Authentication → Settings.
   through an alpha provisioning API the service account can't call; after changing it, run
   `firebase deploy --only auth` locally.
 
+Attachments need the default Cloud Storage bucket (`hyphast-946ea.firebasestorage.app`), created once in the
+console under Storage › Get started; `storage.rules` is deployed with everything else.
+
 It uses the `FIREBASE_SERVICE_ACCOUNT_HYPHAST_946EA` repository secret (the key of the
 `github-action-…@hyphast-946ea.iam.gserviceaccount.com` account that `firebase init hosting:github` created).
 Besides hosting, that account needs these roles:
@@ -113,7 +119,7 @@ Besides hosting, that account needs these roles:
 ```sh
 SA=github-action-...@hyphast-946ea.iam.gserviceaccount.com   # see IAM in the Cloud console
 for role in cloudfunctions.admin run.admin iam.serviceAccountUser artifactregistry.admin \
-    firebaserules.admin datastore.indexAdmin firebaseauth.admin firebasehosting.admin \
+    firebaserules.admin firebasestorage.admin datastore.indexAdmin firebaseauth.admin firebasehosting.admin \
     serviceusage.serviceUsageConsumer serviceusage.apiKeysViewer; do
   gcloud projects add-iam-policy-binding hyphast-946ea --member="serviceAccount:$SA" --role="roles/$role" --condition=None
 done
@@ -131,10 +137,13 @@ nodes/{id}
   due: YYYY-MM-DD or null
   blockedBy: [node ids that must be finished first]
   related: [node ids]  (undirected; stored on one side)
+  attachments: [{id, name, size, contentType, uploadedBy, uploadedAt (ms)}]  (optional)
   createdBy, updatedBy (emails), createdAt (orders siblings), updatedAt, completedAt
 
 members/{email}       name, photoURL, addedBy, addedAt
 apiTokens/{sha256}    email, name, createdAt, lastUsedAt
+
+Cloud Storage: attachments/{nodeId}/{attachmentId}   (storage.rules; deleted together with the node)
 ```
 
 The graph logic (actionable, blocked, cycles, valid parents) lives in `functions/src/model.ts` and is shared by

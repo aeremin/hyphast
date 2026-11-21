@@ -1,0 +1,24 @@
+rules_version = '2';
+
+// Files attached to nodes: attachments/{nodeId}/{attachmentId}. Their metadata (name, size, type) is
+// kept in the node's `attachments` list in Firestore. Members can read, upload and delete everything,
+// like in Firestore.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Same as isMember() in firestore.rules.
+    function isMember() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && (request.auth.token.email.lower() == 'a.eremin.msu@gmail.com'
+          || firestore.exists(/databases/(default)/documents/members/$(request.auth.token.email.lower())));
+    }
+
+    match /attachments/{nodeId}/{attachmentId} {
+      allow read, delete: if isMember();
+      // Keep the size limit in sync with MAX_ATTACHMENT_BYTES in functions/src/model.ts.
+      allow create: if isMember()
+        && request.resource.size <= 25 * 1024 * 1024
+        && firestore.exists(/databases/(default)/documents/nodes/$(nodeId));
+    }
+  }
+}
